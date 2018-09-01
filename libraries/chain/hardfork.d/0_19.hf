@@ -1,0 +1,12 @@
+#ifndef STEEMIT_HARDFORK_0_19
+#define STEEMIT_HARDFORK_0_19 19
+
+#ifdef STEEMIT_BUILD_TESTNET
+#define STEEMIT_HARDFORK_0_19_TIME  1534755600 // 20 aug 2018 12:00:00 MSK
+#else
+#define STEEMIT_HARDFORK_0_19_TIME  1543654800 // 01 dec 2018 12:00:00 MSK - fake date
+#endif
+
+#define STEEMIT_HARDFORK_0_19_VERSION hardfork_version( 0, 19 )
+
+#endif

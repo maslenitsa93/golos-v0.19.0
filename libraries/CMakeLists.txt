@@ -1,0 +1,7 @@
+add_subdirectory(api)
+add_subdirectory(chain)
+add_subdirectory(protocol)
+add_subdirectory(network)
+add_subdirectory(time)
+add_subdirectory(utilities)
+add_subdirectory(wallet)
