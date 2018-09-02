@@ -570,28 +570,35 @@ namespace golos { namespace chain {
                         });
                     }
 
+                    int64_t elapsed_seconds = (now - auth.last_post).to_seconds();
+                    int64_t regenerated_capacity = std::min(int64_t(STEEMIT_COMMENTS_CAPACITY_100), int64_t(elapsed_seconds));
+                    int64_t current_capacity = std::min(int64_t(auth.comments_capacity + regenerated_capacity), int64_t(STEEMIT_COMMENTS_CAPACITY_100));
+
                     if (_db.has_hardfork(STEEMIT_HARDFORK_0_12__176)) {
                         if (o.parent_author == STEEMIT_ROOT_POST_PARENT)
                             GOLOS_CHECK_BANDWIDTH(now, band->last_bandwidth_update + STEEMIT_MIN_ROOT_COMMENT_INTERVAL,
-                                    bandwidth_exception::post_bandwidth,
-                                    "You may only post once every 5 minutes.");
+                                bandwidth_exception::post_bandwidth,
+                                "You may only post once every 5 minutes.");
                         else
-                            GOLOS_CHECK_BANDWIDTH(now, auth.last_post + STEEMIT_MIN_REPLY_INTERVAL,
-                                    golos::bandwidth_exception::comment_bandwidth,
-                                    "You may only comment once every 20 seconds.");
+                            GOLOS_CHECK_BANDWIDTH(current_capacity, STEEMIT_COMMENT_CONSUMPTION,
+                                bandwidth_exception::comment_bandwidth,
+                                "You may only comment " + std::to_string(STEEMIT_COMMENTS_CAPACITY_100 / STEEMIT_COMMENT_CONSUMPTION) 
+                                + " times in " + std::to_string(STEEMIT_COMMENTS_CAPACITY_100) + " seconds.");
                     } else if (_db.has_hardfork(STEEMIT_HARDFORK_0_6__113)) {
                         if (o.parent_author == STEEMIT_ROOT_POST_PARENT)
                             GOLOS_CHECK_BANDWIDTH(now, auth.last_post + STEEMIT_MIN_ROOT_COMMENT_INTERVAL,
-                                    bandwidth_exception::post_bandwidth,
-                                    "You may only post once every 5 minutes.");
-                        else
-                            GOLOS_CHECK_BANDWIDTH(now, auth.last_post + STEEMIT_MIN_REPLY_INTERVAL,
+                                bandwidth_exception::post_bandwidth,
+                                "You may only post once every 5 minutes.");
+                        else {
+                            GOLOS_CHECK_BANDWIDTH(current_capacity, STEEMIT_COMMENT_CONSUMPTION,
                                 bandwidth_exception::comment_bandwidth,
-                                "You may only comment once every 20 seconds.");
+                                "You may only comment " + std::to_string(STEEMIT_COMMENTS_CAPACITY_100 / STEEMIT_COMMENT_CONSUMPTION) 
+                                + " times in " + std::to_string(STEEMIT_COMMENTS_CAPACITY_100) + " seconds.");
+                        }
                     } else {
                         GOLOS_CHECK_BANDWIDTH(now, auth.last_post + 60,
-                                bandwidth_exception::post_bandwidth,
-                                "You may only post once per minute.");
+                            bandwidth_exception::post_bandwidth,
+                            "You may only post once per minute.");
                     }
 
                     uint16_t reward_weight = STEEMIT_100_PERCENT;
@@ -624,6 +631,7 @@ namespace golos { namespace chain {
                     db().modify(auth, [&](account_object &a) {
                         a.last_post = now;
                         a.post_count++;
+                        a.comments_capacity = uint16_t(current_capacity - STEEMIT_COMMENT_CONSUMPTION);
                     });
 
                     _db.create<comment_object>([&](comment_object &com) {
@@ -1206,9 +1214,13 @@ namespace golos { namespace chain {
                 auto itr = comment_vote_idx.find(std::make_tuple(comment.id, voter.id));
 
                 int64_t elapsed_seconds = (_db.head_block_time() - voter.last_vote_time).to_seconds();
+                int64_t regenerated_capacity = std::min(int64_t(STEEMIT_VOTING_CAPACITY_100), int64_t(elapsed_seconds));
+                int64_t current_capacity = std::min(int64_t(voter.voting_capacity + regenerated_capacity), int64_t(STEEMIT_VOTING_CAPACITY_100));
 
-                GOLOS_CHECK_BANDWIDTH(_db.head_block_time(), voter.last_vote_time + STEEMIT_MIN_VOTE_INTERVAL_SEC-1,
-                        bandwidth_exception::vote_bandwidth, "Can only vote once every 3 seconds.");
+                GOLOS_CHECK_BANDWIDTH(current_capacity, STEEMIT_VOTING_CONSUMPTION,
+                    bandwidth_exception::vote_bandwidth,
+                    "Can only vote " + std::to_string(STEEMIT_VOTING_CAPACITY_100 / STEEMIT_VOTING_CONSUMPTION)
+                    + " times in " + std::to_string(STEEMIT_VOTING_CAPACITY_100) + " seconds.");
 
                 int64_t regenerated_power =
                         (STEEMIT_100_PERCENT * elapsed_seconds) /
@@ -1273,6 +1285,7 @@ namespace golos { namespace chain {
                     _db.modify(voter, [&](account_object &a) {
                         a.voting_power = current_power - used_power;
                         a.last_vote_time = _db.head_block_time();
+                        a.voting_capacity = uint16_t(current_capacity - STEEMIT_VOTING_CONSUMPTION);
                     });
 
                     /// if the current net_rshares is less than 0, the post is getting 0 rewards so it is not factored into total rshares^2
